@@ -1,0 +1,118 @@
+import pandas as pd
+import numpy as np
+import torch
+import torch.nn as nn
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import TensorDataset, DataLoader
+
+torch.manual_seed(42)
+np.random.seed(42)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+df = pd.read_csv("puma560_dataset.csv")
+
+X = df[[f"joint_{i}_deg" for i in range(1, 7)]].values
+y = df[["x_m", "y_m", "z_m"]].values
+
+X_trainval, X_test, y_trainval, y_test = train_test_split(
+    X, y, test_size=0.15, random_state=42
+)
+
+X_train, X_val, y_train, y_val = train_test_split(
+    X_trainval, y_trainval, test_size=0.1765, random_state=42
+)
+
+xs, ys = StandardScaler(), StandardScaler()
+
+X_train = xs.fit_transform(X_train)
+X_val = xs.transform(X_val)
+X_test = xs.transform(X_test)
+
+y_train = ys.fit_transform(y_train)
+y_val = ys.transform(y_val)
+
+train_ds = TensorDataset(
+    torch.tensor(X_train, dtype=torch.float32),
+    torch.tensor(y_train, dtype=torch.float32)
+)
+
+loader = DataLoader(train_ds, batch_size=256, shuffle=True)
+
+Xv = torch.tensor(X_val, dtype=torch.float32).to(device)
+yv = torch.tensor(y_val, dtype=torch.float32).to(device)
+
+class RobotNN(nn.Module):
+    def init(self):
+        super().init()
+        self.net = nn.Sequential(
+            nn.Linear(6, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 3)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+model = RobotNN().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+loss_fn = nn.MSELoss()
+
+best_val = float("inf")
+best_state = None
+
+for epoch in range(600):
+    model.train()
+
+    for xb, yb in loader:
+        xb, yb = xb.to(device), yb.to(device)
+
+        optimizer.zero_grad()
+        loss = loss_fn(model(xb), yb)
+        loss.backward()
+        optimizer.step()
+
+    model.eval()
+    with torch.no_grad():
+        val_loss = loss_fn(model(Xv), yv).item()
+
+    if val_loss < best_val:
+        best_val = val_loss
+        best_state = {
+            k: v.detach().cpu().clone()
+            for k, v in model.state_dict().items()
+        }
+
+model.load_state_dict(best_state)
+model.eval()
+
+with torch.no_grad():
+    Xtest = torch.tensor(
+        X_test, dtype=torch.float32
+    ).to(device)
+    pred_scaled = model(Xtest).cpu().numpy()
+
+predictions = ys.inverse_transform(pred_scaled)
+
+mae = np.mean(np.abs(predictions - y_test))
+rmse = np.sqrt(np.mean((predictions - y_test) ** 2))
+
+print(f"Test MAE: {mae:.6f} m")
+print(f"Test RMSE: {rmse:.6f} m")
+
+torch.save(model.state_dict(), "/content/robot_nn.pth")
+
+pd.DataFrame({
+    "actual_x": y_test[:, 0],
+    "predicted_x": predictions[:, 0],
+    "actual_y": y_test[:, 1],
+    "predicted_y": predictions[:, 1],
+    "actual_z": y_test[:, 2],
+    "predicted_z": predictions[:, 2]
+}).to_csv("/content/robot_predictions.csv", index=False)

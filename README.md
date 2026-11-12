@@ -1,21 +1,42 @@
 # Neural Network Robotic Hand Control
 
-An educational machine-learning project exploring how a neural network can map input signals to robotic-hand movement values. The repository includes `puma560_dataset.csv` and a folder named `robot hand`; inspect the folder to identify the training code, input/output schema, and framework actually used.
+A PyTorch regression experiment that maps six PUMA560 joint angles to an end-effector position (x, y, z).
 
-## Getting started
+## Repository files
+- `robot hand`: Python training script (extensionless filename in the current repository).
+- `puma560_dataset.csv`: source dataset with joint-angle inputs and Cartesian position targets.
+- `requirements.txt`: Python dependencies.
+- `artifacts/`: generated model weights and test predictions (created when the script runs).
 
-1. Clone or download the repository.
-2. Review the CSV column names and the code in `robot hand` to understand the dataset and expected targets.
-3. Create a Python virtual environment.
-4. Install dependencies required by the source. There is no root `requirements.txt`, so the framework and exact versions must be confirmed from the code.
-5. Follow the training and evaluation instructions included with the source, if available.
+## Setup
 
-The project README describes supervised learning and regression evaluation, but the code and dataset should be checked before interpreting those details as a reproducible procedure. Previously stated error metrics have not been independently verified here.
+Python 3.10+ is recommended.
 
-## Safety and scope
+Windows PowerShell:
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python "robot hand"
+```
 
-The checked-in dataset and model should not be connected directly to physical hardware. A model trained on example data does not establish safe control, stability, or suitability for prosthetics. Any hardware use requires independent engineering review, actuator limits, emergency stop behavior, and extensive testing in a controlled environment.
+macOS/Linux:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python "robot hand"
+```
 
-## Tests
+The script selects CUDA when PyTorch detects a compatible GPU; otherwise it uses CPU. It trains a feed-forward network, keeps the best validation checkpoint, evaluates on a held-out test split, and writes `artifacts/robot_nn.pth` and `artifacts/robot_predictions.csv`.
 
-No root dependency manifest or test command is currently documented. Add tests for data validation, preprocessing consistency, train/test separation, output bounds, and model serialization before extending the project.
+## Data and evaluation
+Inputs are `joint_1_deg` through `joint_6_deg`; targets are `x_m`, `y_m`, and `z_m`. Feature and target scalers are fitted on training data only. The reported MAE/RMSE are calculated after inverse-transforming predictions to meters. Re-run the script to reproduce metrics for the current dependency versions and dataset.
+
+## Safety
+This is an offline learning experiment, not a validated robot controller. Do not connect the generated model directly to physical hardware. Real-world use requires independent kinematic validation, joint/velocity/torque limits, collision checks, emergency stops, and controlled testing.
+
+## Limitations
+The training script is a standalone experiment rather than a reusable inference package. The saved state dictionary must be loaded with the same model architecture and preprocessing scalers; this script currently saves the weights but not the fitted scalers.

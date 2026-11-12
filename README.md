@@ -1,21 +1,48 @@
 # Neural Network Robotic Hand Control
 
-An educational machine-learning project exploring how a neural network can map input signals to robotic-hand movement values. The repository includes `puma560_dataset.csv` and a folder named `robot hand`; inspect the folder to identify the training code, input/output schema, and framework actually used.
+A PyTorch regression experiment that maps six PUMA 560 joint-angle inputs to three Cartesian position outputs. The repository includes the `puma560_dataset.csv` dataset and a maintained training entry point.
 
-## Getting started
+## Model
 
-1. Clone or download the repository.
-2. Review the CSV column names and the code in `robot hand` to understand the dataset and expected targets.
-3. Create a Python virtual environment.
-4. Install dependencies required by the source. There is no root `requirements.txt`, so the framework and exact versions must be confirmed from the code.
-5. Follow the training and evaluation instructions included with the source, if available.
+- Six input joint angles: `joint_1_deg` through `joint_6_deg`.
+- Three output coordinates: `x_m`, `y_m`, `z_m`.
+- Feed-forward neural network with ReLU activations.
+- Train/validation/test separation.
+- Standardization fitted only on training data.
+- Validation-based checkpoint selection and early stopping.
+- CPU or CUDA execution when available.
 
-The project README describes supervised learning and regression evaluation, but the code and dataset should be checked before interpreting those details as a reproducible procedure. Previously stated error metrics have not been independently verified here.
+## Setup
 
-## Safety and scope
+Python 3.10+:
 
-The checked-in dataset and model should not be connected directly to physical hardware. A model trained on example data does not establish safe control, stability, or suitability for prosthetics. Any hardware use requires independent engineering review, actuator limits, emergency stop behavior, and extensive testing in a controlled environment.
+```bash
+python -m venv .venv
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python train.py
+```
 
-## Tests
+## Outputs
 
-No root dependency manifest or test command is currently documented. Add tests for data validation, preprocessing consistency, train/test separation, output bounds, and model serialization before extending the project.
+Generated locally in `artifacts/`:
+
+- `robot_hand_model.pt`: model checkpoint and feature metadata.
+- `scalers.joblib`: fitted input and output scalers.
+- `test_predictions.csv`: held-out actual/predicted coordinates.
+
+The printed MAE and RMSE are measured in metres on the held-out test set. Do not publish a performance claim without the dataset version and actual run output.
+
+## Safety
+
+This is a dataset-based learning experiment, not a validated robot controller. Never connect the model directly to physical actuators or a prosthetic device. Real hardware requires independent kinematic validation, bounded commands, collision checks, fail-safe behavior, emergency stop controls and supervised testing.
+
+## Reproducibility
+
+The maintained entry point fixes the random seed and stores the preprocessing scalers with the checkpoint. Generated artifacts are excluded from Git.
+
+## License
+
+No license is declared. All rights reserved unless the repository owner adds an explicit license.
